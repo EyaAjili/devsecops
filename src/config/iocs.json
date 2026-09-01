@@ -1,0 +1,41 @@
+{
+  "malicious_domains": [
+    "evil.com", "attacker.com", "malware.com", "pastebin.com",
+    "c2-server.com", "darkweb.link", "exfil.io"
+  ],
+  "internal_indicators": [
+    "localhost", "127.0.0.1", "::1", "internal-",
+    "cluster.local", ".svc", ".local", "kube-dns"
+  ],
+  "sensitive_paths": [
+    "/etc/shadow", "/etc/passwd", ".ssh/", "/etc/crontab",
+    "/etc/sudoers", "/etc/hosts", "/proc/self/environ"
+  ],
+  "suspicious_extensions": [
+    ".sh", ".bin", ".exe", ".elf", ".py", ".pl"
+  ],
+  "suspicious_keywords": [
+    "backdoor", "reverse", "shell", "exploit",
+    "payload", "rootkit", "trojan", "bind", "connect"
+  ],
+  "recon_verbs": [
+    "whoami", "id", "ps", "df", "ls", "cat", "echo",
+    "env", "uname", "stat", "pwd", "hostname", "ifconfig",
+    "ip", "netstat", "ss", "lsof"
+  ],
+  "privesc_verbs": [
+    "sudo", "su", "chmod", "chown", "setfacl", "pkexec"
+  ],
+  "package_verbs": [
+    "apt", "yum", "dnf", "pacman", "apk", "dpkg", "rpm"
+  ],
+  "network_verbs": [
+    "curl", "wget", "nc", "netcat", "scp", "ftp", "sftp", "tftp"
+  ],
+  "user_roles": {
+    "root": {"uids": [0], "description": "root user"},
+    "admin": {"uids": [1000], "description": "administrator"},
+    "dev": {"uids": [1001], "description": "developer"},
+    "bot": {"uids": [999], "description": "service account"}
+  }
+}

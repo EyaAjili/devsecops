@@ -1,0 +1,44 @@
+{
+  "user_uid": "2000",
+  "user_name": "nan",
+  "total_events": 4,
+  "hourly_histogram": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "verbs": [
+    "kube-webhook-ce"
+  ],
+  "domains": [
+    "internal",
+    "none"
+  ],
+  "sensitive_rate": 0.0,
+  "pipe_rate": 0.0,
+  "redirect_rate": 0.0,
+  "cmd_len_mean": 168.0,
+  "cmd_len_std": 8.082903768654761,
+  "timezone": "Africa/Tunis"
+}

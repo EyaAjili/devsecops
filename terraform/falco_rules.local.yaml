@@ -1,0 +1,125 @@
+# Règles custom Falco — duration dans l'output pour que Falcosidekick
+# remplisse output_fields["evt.duration"] et output_fields["proc.duration"].
+
+# ============================================================
+# NETWORK
+# ============================================================
+
+- rule: Suspicious outbound connection
+  desc: Detects an outbound connection from a container to an unexpected destination port
+  condition: >
+    outbound and container and
+    fd.rport != 80 and
+    fd.rport != 443 and
+    fd.rport != 53
+  output: >
+    Suspicious outbound connection
+    (user=%user.name command=%proc.cmdline
+    connection=%fd.name container=%container.name
+    image=%container.image.repository
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: WARNING
+  tags: [network, custom]
+
+- rule: Unexpected inbound connection on non-standard port
+  desc: Detects an inbound connection to a container on a non-standard destination port
+  condition: >
+    evt.type=accept and
+    container and
+    fd.l4proto in (tcp, udp) and
+    fd.lport != 80 and
+    fd.lport != 443 and
+    fd.lport != 53
+  output: >
+    Unexpected inbound connection on non-standard port
+    (connection=%fd.name local_port=%fd.lport
+    process=%proc.name container=%container.name
+    image=%container.image.repository
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: WARNING
+  tags: [network, custom]
+
+# ============================================================
+# CREDENTIALS
+# ============================================================
+
+- rule: Sensitive file access outside shadow
+  desc: Detects access to SSH keys and PEM credential files inside containers
+  condition: >
+    open_read and container and
+    (fd.name startswith /etc/ssh or
+     fd.name startswith /root/.ssh or
+     fd.name endswith .pem)
+  output: >
+    Sensitive credential file accessed
+    (user=%user.name file=%fd.name
+    process=%proc.name container=%container.name
+    image=%container.image.repository
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: CRITICAL
+  tags: [filesystem, credentials, custom]
+
+- rule: Sensitive environment variable credential access
+  desc: Detects processes accessing environment variables that may contain credentials
+  condition: >
+    open_read and container and
+    (fd.name=/proc/self/environ or
+     fd.name glob /proc/*/environ)
+  output: >
+    Possible credential access through process environment
+    (user=%user.name file=%fd.name
+    process=%proc.name container=%container.name
+    image=%container.image.repository
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: WARNING
+  tags: [credentials, process, custom]
+
+# ============================================================
+# PROCESS
+# ============================================================
+
+- rule: Unexpected package manager execution
+  desc: Detects package manager execution inside a container
+  condition: >
+    spawned_process and container and
+    proc.name in (apt, apt-get, yum, dnf, apk, pip, pip3)
+  output: >
+    Package manager executed in container
+    (user=%user.name command=%proc.cmdline
+    container=%container.name image=%container.image.repository
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: WARNING
+  tags: [process, custom]
+
+- rule: Unexpected process spawned in application container
+  desc: Detects potentially suspicious shell or diagnostic processes spawned inside an application container
+  condition: >
+    spawned_process and container and
+    proc.name in (bash, sh, zsh, nc, ncat, curl, wget)
+  output: >
+    Unexpected process spawned in application container
+    (user=%user.name process=%proc.name
+    command=%proc.cmdline parent=%proc.pname
+    container=%container.name image=%container.image.repository
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: WARNING
+  tags: [process, execution, custom]
+
+# ============================================================
+# NORMAL BASELINE
+# ============================================================
+
+- rule: Baseline normal activity demo-app
+  desc: Capture process activity in demo-app namespace for normal baseline collection
+  condition: >
+    spawned_process and container and
+    k8s.ns.name = "demo-app"
+  output: >
+    Baseline activity
+    (user=%user.name process=%proc.name
+    command=%proc.cmdline parent=%proc.pname
+    container=%container.name image=%container.image.repository
+    pod=%k8s.pod.name
+    evt_duration=%evt.duration proc_duration=%proc.duration)
+  priority: INFORMATIONAL
+  tags: [baseline, custom]

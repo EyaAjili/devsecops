@@ -1,0 +1,111 @@
+{
+  "title": "DevSecOps AI Prototype",
+  "tags": ["security", "falco", "uba", "cilium", "jira"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Alertes Critiques IA",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(devsecops_ai_alerts_total{severity=\"critical\"})",
+          "legendFormat": "Critiques"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Quarantaines Cilium (succès)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(devsecops_remediations_total{status=\"success\"})",
+          "legendFormat": "Isolés"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tickets Jira créés",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(devsecops_jira_tickets_total{status=\"created\"})",
+          "legendFormat": "Créés"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Événements Falco",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(devsecops_falco_events_total)",
+          "legendFormat": "Total"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Score d'Anomalie IA par Utilisateur (Temps Réel)",
+      "gridPos": { "h": 12, "w": 16, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "devsecops_ai_anomaly_score",
+          "legendFormat": "{{user}} ({{pod}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 45 },
+              { "color": "red", "value": 70 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tickets Jira (created / reused / skipped)",
+      "gridPos": { "h": 12, "w": 8, "x": 16, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (status) (devsecops_jira_tickets_total)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    }
+  ]
+}
