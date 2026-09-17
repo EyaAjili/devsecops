@@ -106,17 +106,15 @@ def random_timestamp(start, end, bias_day=False, bias_night=False):
     return ts
 
 
-def duration_for_command(command, is_anomaly):
+def duration_for_command(command):
     if "apt" in command and "version" not in command:
         return random.uniform(4000, 25000)
     if any(x in command for x in ["curl", "wget", "evil.com"]):
         return random.uniform(200, 4000)
-    if is_anomaly:
-        return random.uniform(50, 800)
     return random.uniform(1, 40)
 
 
-def generate_event(cmd_tuple, rule, priority, event_type="execve", file="", connection="", is_anomaly=False):
+def generate_event(cmd_tuple, rule, priority, event_type="execve", file="", connection=""):
     command, proc_name, parent, user, user_uid = cmd_tuple
     ts = random_timestamp(START_DATE, END_DATE, bias_day=(user in ["admin", "dev"]))
     stamp = ts.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -144,7 +142,7 @@ def generate_event(cmd_tuple, rule, priority, event_type="execve", file="", conn
         "event_type": event_type,
         "file": file,
         "connection": connection,
-        "command_duration_ms": round(duration_for_command(command, is_anomaly), 2),
+        "command_duration_ms": round(duration_for_command(command), 2),
     }
 
 
@@ -173,11 +171,12 @@ def generate_session(commands, is_anomaly=False):
         if command.startswith("cat "):
             parts = command.split()
             file_target = parts[1] if len(parts) > 1 else ""
-        event = generate_event(cmd_tuple, rule, priority, file=file_target, connection=conn, is_anomaly=is_anomaly)
+        # is_anomaly no longer forwarded — generate_event/duration_for_command
+        # must not depend on the label, only on the command itself.
+        event = generate_event(cmd_tuple, rule, priority, file=file_target, connection=conn)
         event["timestamp"] = ts.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         events.append(event)
     return events
-
 
 def main():
     all_events = []

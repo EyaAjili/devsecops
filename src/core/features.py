@@ -4,11 +4,11 @@ from core.iocs_loader import (
     INTERNAL_INDICATORS, MALICIOUS_DOMAINS, NETWORK_VERBS,
     SUSPICIOUS_KEYWORDS, SUSPICIOUS_EXTS
 )
-from core.time_features import parse_duration_ms
+from core.time_features import parse_duration_ms, to_lab_local, temporal_features
 
 SHELL_RE = re.compile(r"^(sh|bash|runc|sudo)\s+-c\s+", re.IGNORECASE)
 
-# Vecteur couche 1 (ordre fixe — doit matcher le pickle après train.py)
+# Vecteur couche 1 (ordre fixe — doit matcher le pickle après run_train.py)
 FEATURE_COLS = [
     "hour_of_day",
     "day_of_week",
@@ -22,14 +22,11 @@ FEATURE_COLS = [
     "has_pipe",
     "has_redirect",
     "has_dollar_subshell",
-    "has_suspicious_keyword",
-    "has_suspicious_extension",
-    "is_sensitive_file",
     "is_shell_spawned",
     "has_indirection",
     "event_count_5min",
     "command_verb_enc",
-    "target_domain_enc",
+
 ]
 
 
@@ -54,7 +51,10 @@ def target_domain(cmd):
 
 
 def has_suspicious_keyword(cmd):
-    return int(any(kw in str(cmd).lower() for kw in SUSPICIOUS_KEYWORDS))
+    # « bind/connect/shell » matchaient mount -o bind et trop de faux positifs.
+    ignored = {"bind", "connect", "shell", "reverse"}
+    c = str(cmd).lower()
+    return int(any(kw in c for kw in SUSPICIOUS_KEYWORDS if kw not in ignored))
 
 
 def has_suspicious_extension(cmd):
@@ -76,6 +76,28 @@ def command_duration_features(event_or_row):
         "command_duration_ms": ms,
         "is_long_runtime": 1 if ms >= 3000 else 0,
     }
+
+
+def count_events_5min(event_dict, history_df):
+    """Nombre d'événements du même pod dans les 5 minutes (fuseau lab)."""
+    ts = temporal_features(event_dict.get("timestamp"))["timestamp_local"]
+    if history_df is None or getattr(history_df, "empty", True) or pd.isna(ts):
+        return 1
+    pod = event_dict.get("pod")
+    subset = history_df
+    if pod is not None and "pod" in history_df.columns:
+        subset = history_df[history_df["pod"] == pod]
+    if subset is None or len(subset) == 0:
+        return 1
+    times = subset["timestamp"].apply(to_lab_local)
+    window_start = ts - pd.Timedelta(minutes=5)
+    return max(1, int(((times >= window_start) & (times <= ts)).sum()))
+
+
+def is_sensitive_target(event_dict):
+    from core.iocs_loader import SENSITIVE_PATHS
+    blob = f"{event_dict.get('file', '')} {event_dict.get('command', '')}"
+    return any(s in str(blob) for s in SENSITIVE_PATHS)
 
 
 def extract_file_and_connection(output_fields, rule):

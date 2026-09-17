@@ -7,7 +7,7 @@ from collections import Counter
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from config.settings import PROFILE_DIR, MODEL_DIR
-from core.features import extract_verb, target_domain, domain_to_score
+from core.features import extract_verb, target_domain, domain_to_score, count_events_5min, is_sensitive_target
 from core.time_features import temporal_features, parse_duration_ms
 from core.iocs_loader import (
     resolve_uid_from_role, SENSITIVE_PATHS, PRIVESC_VERBS,
@@ -34,7 +34,9 @@ class UBAModel:
         cmd = str(row.get("command", ""))
         verb = extract_verb(cmd)
         domain = target_domain(cmd)
-        if domain == "external_malicious" or any(s in str(row.get("file", "")) for s in SENSITIVE_PATHS) or verb in PRIVESC_VERBS:
+        # Exclure du profil horaire les C2 / privesc, mais garder les lectures
+        # sensibles (un admin lit /etc/shadow en heures de bureau).
+        if domain == "external_malicious" or verb in PRIVESC_VERBS:
             return True
         return False
 
@@ -70,7 +72,10 @@ class UBAModel:
         df["command_verb"] = df["command"].apply(extract_verb)
         df["target_domain"] = df["command"].apply(target_domain)
         df["command_length"] = df["command"].str.len().fillna(0)
-        df["is_sensitive_file"] = df["file"].apply(lambda f: any(s in str(f) for s in SENSITIVE_PATHS)).astype(int)
+        df["is_sensitive_file"] = df.apply(
+            lambda r: int(any(s in f"{r.get('file', '')} {r.get('command', '')}" for s in SENSITIVE_PATHS)),
+            axis=1,
+        )
         df["has_pipe"] = df["command"].str.contains(r"\|", na=False).astype(int)
         df["has_redirect"] = df["command"].str.contains(r">|>>", na=False).astype(int)
         if "command_duration_ms" not in df.columns:
@@ -114,7 +119,7 @@ class UBAModel:
                     with open(os.path.join(MODEL_DIR, f), "rb") as file:
                         self.models[uid] = pickle.load(file)
 
-    def score(self, event_dict):
+    def score(self, event_dict, history_df=None):
         uid = str(event_dict.get("user_uid", "0")).replace(".0", "")
         if uid in ("nan", "NaN", "NAN", "None", "none", ""):
             uid = resolve_uid_from_role(str(event_dict.get("user", "root")).lower())
@@ -157,9 +162,20 @@ class UBAModel:
             score += 15
             reasons.append(f"Domaine nouveau pour {profile['user_name']}")
 
-        if any(s in str(event_dict.get("file", "")) for s in SENSITIVE_PATHS) and profile["sensitive_rate"] < 0.01:
+        sensitive = is_sensitive_target(event_dict)
+        if sensitive and profile["sensitive_rate"] < 0.05:
             score += 40
-            reasons.append("Fichier sensible (jamais lu avant par cet utilisateur)")
+            reasons.append("Fichier sensible (jamais / rarement lu par cet utilisateur)")
+        elif sensitive:
+            reasons.append("Fichier sensible, mais déjà vu dans le profil (contexte métier)")
+
+        burst = count_events_5min(event_dict, history_df)
+        if burst >= 40:
+            score += 35
+            reasons.append(f"Fréquence très élevée ({burst} events / 5 min)")
+        elif burst >= 15:
+            score += 20
+            reasons.append(f"Fréquence élevée ({burst} events / 5 min)")
 
         if duration_ms >= 3000:
             score += 15
@@ -169,7 +185,7 @@ class UBAModel:
             model, scaler = self.models[uid]
             X = np.array([[
                 hour, tf["day_of_week"], len(cmd),
-                1 if any(s in str(event_dict.get("file", "")) for s in SENSITIVE_PATHS) else 0,
+                1 if is_sensitive_target(event_dict) else 0,
                 1 if "|" in cmd else 0, 1 if ">" in cmd else 0,
                 tf["is_off_hours"], duration_ms,
             ]])
@@ -180,4 +196,4 @@ class UBAModel:
             except Exception:
                 pass
 
-        return score, reasons
+        return min(score, 100.0), reasons

@@ -1,7 +1,7 @@
 {
-  "user_uid": "2000",
+  "user_uid": "65534",
   "user_name": "<NA>",
-  "total_events": 6,
+  "total_events": 4,
   "hourly_histogram": [
     0.0,
     0.0,
@@ -17,11 +17,11 @@
     0.0,
     0.0,
     0.0,
-    0.6666666666666666,
-    0.3333333333333333,
     0.0,
     0.0,
     0.0,
+    0.0,
+    1.0,
     0.0,
     0.0,
     0.0,
@@ -29,16 +29,15 @@
     0.0
   ],
   "verbs": [
-    "kube-webhook-ce"
+    "kube-state-metr"
   ],
   "domains": [
-    "internal",
-    "none"
+    "external_unknown"
   ],
   "sensitive_rate": 0.0,
   "pipe_rate": 0.0,
   "redirect_rate": 0.0,
-  "cmd_len_mean": 168.0,
-  "cmd_len_std": 7.6681158050723255,
+  "cmd_len_mean": 492.0,
+  "cmd_len_std": 1.0,
   "timezone": "Africa/Tunis"
 }

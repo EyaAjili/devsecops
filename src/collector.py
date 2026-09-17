@@ -1,16 +1,16 @@
 import os
 import csv
-import pandas as pd
 from flask import Flask, request, jsonify
 from prometheus_client import start_http_server, Counter, Gauge
 
-from models.hybrid_engine import HybridEngine
+from models.engine import HybridEngine
 from core.remediation import trigger_remediation
-from config.settings import REAL_DATA_PATH
+from config.settings import REAL_DATA_PATH, FALCO_CSV_COLUMNS
 from core.alerting import send_gmail_alert
 from core.jira_ticketing import create_jira_ticket
 from core.features import extract_file_and_connection
 from core.time_features import parse_duration_ms
+from core.csv_io import load_falco_csv
 
 app = Flask(__name__)
 
@@ -18,7 +18,7 @@ print("[+] Chargement du modèle d'IA hybride...")
 engine = HybridEngine()
 try:
     engine.load()
-    df_history = pd.read_csv(REAL_DATA_PATH) if os.path.exists(REAL_DATA_PATH) else None
+    df_history = load_falco_csv(REAL_DATA_PATH) if os.path.exists(REAL_DATA_PATH) else None
     print("[+] Modèles d'IA chargés avec succès.")
 except Exception as e:
     print(f"[!] Attention, impossible de charger l'IA: {e}")
@@ -30,12 +30,7 @@ AI_ALERTS_TOTAL = Counter("devsecops_ai_alerts_total", "Total alertes", ["severi
 REMEDIATION_TOTAL = Counter("devsecops_remediations_total", "Remediations (quarantine)", ["status"])
 JIRA_TICKETS_TOTAL = Counter("devsecops_jira_tickets_total", "Tickets Jira", ["status"])
 
-HEADERS = [
-    "timestamp", "uuid", "priority", "rule", "event_scope", "node", "namespace",
-    "pod", "container_id", "container_name", "image", "image_tag", "user",
-    "user_uid", "proc_name", "proc_exepath", "parent_process", "command",
-    "event_type", "file", "connection", "command_duration_ms",
-]
+HEADERS = list(FALCO_CSV_COLUMNS)
 
 if not os.path.exists(REAL_DATA_PATH):
     with open(REAL_DATA_PATH, "w", newline="", encoding="utf-8") as f:
@@ -70,6 +65,9 @@ def receive_falco_event():
         "evt.duration": output_fields.get("evt.duration"),
         "proc.duration": output_fields.get("proc.duration"),
     }
+    if event_for_ai["event_scope"] == "node":
+        print(f"[i] Event hors-cluster ignoré (host, pas de pod) | {event_for_ai['rule']}")
+        return jsonify({"status": "ignored", "reason": "node-scope event"}), 200
 
     prediction = engine.predict(event_for_ai, history_df=df_history)
     score = prediction.get("combined_score", 0)
@@ -88,14 +86,18 @@ def receive_falco_event():
         AI_ALERTS_TOTAL.labels(severity="suspect").inc()
 
     if score >= 70:
-        remed_success, remed_msg, _details = trigger_remediation(data, prediction)
-        REMEDIATION_TOTAL.labels(status="success" if remed_success else "failed").inc()
-        ticket = create_jira_ticket(event_for_ai, prediction, remed_msg)
-        if ticket:
-            JIRA_TICKETS_TOTAL.labels(status="reused" if ticket.get("reused") else "created").inc()
+        remed_success, remed_msg, details = trigger_remediation(data, prediction)
+        if details.get("already_isolated"):
+            print("[i] Pod déjà isolé — remédiation, Jira et mail arrêtés.")
+            REMEDIATION_TOTAL.labels(status="already_isolated").inc()
         else:
-            JIRA_TICKETS_TOTAL.labels(status="skipped").inc()
-        send_gmail_alert(event_for_ai, score, remed_success, remed_msg, ticket)
+            REMEDIATION_TOTAL.labels(status="success" if remed_success else "failed").inc()
+            ticket = create_jira_ticket(event_for_ai, prediction, remed_msg)
+            if ticket:
+                JIRA_TICKETS_TOTAL.labels(status="reused" if ticket.get("reused") else "created").inc()
+            else:
+                JIRA_TICKETS_TOTAL.labels(status="skipped").inc()
+            send_gmail_alert(event_for_ai, score, remed_success, remed_msg, ticket)
 
     file_name, connection = extract_file_and_connection(output_fields, event_for_ai["rule"])
     row = [

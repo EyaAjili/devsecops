@@ -5,11 +5,11 @@ from email.mime.multipart import MIMEMultipart
 
 
 def send_gmail_alert(event, score, remediation_success, remediation_msg="", jira_ticket=None):
-    sender_email = os.environ.get("GMAIL_SENDER", "eyaajili2@gmail.com")
-    receiver_email = os.environ.get("GMAIL_RECEIVER", "eya.lajili@istic.ucar.tn")
+    sender_email = os.environ.get("GMAIL_SENDER", "")
+    receiver_email = os.environ.get("GMAIL_RECEIVER", "")
     app_password = os.environ.get("GMAIL_APP_PASSWORD")
-    if not app_password:
-        print("[!] Email ignoré : GMAIL_APP_PASSWORD non défini")
+    if not app_password or not sender_email or not receiver_email:
+        print("[!] Email ignoré : définir GMAIL_SENDER, GMAIL_RECEIVER et GMAIL_APP_PASSWORD")
         return
 
     jira_line = "Ticket Jira : non créé (config absente ou API en erreur)."

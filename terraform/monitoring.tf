@@ -36,7 +36,7 @@ resource "helm_release" "kube_prometheus_stack" {
               job_name = "devsecops-ai"
               static_configs = [
                 {
-                  targets = ["192.168.101.239:8000"]
+                  targets = ["192.168.41.128:8000"]
                 }
               ]
             }

@@ -21,6 +21,13 @@ JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN", "")
 JIRA_PROJECT_KEY = os.environ.get("JIRA_PROJECT_KEY", "SEC")
 JIRA_ISSUE_TYPE = os.environ.get("JIRA_ISSUE_TYPE", "Task")
 
+FALCO_CSV_COLUMNS = [
+    "timestamp", "uuid", "priority", "rule", "event_scope", "node", "namespace",
+    "pod", "container_id", "container_name", "image", "image_tag", "user",
+    "user_uid", "proc_name", "proc_exepath", "parent_process", "command",
+    "event_type", "file", "connection", "command_duration_ms",
+]
+
 os.makedirs(DATASET_DIR, exist_ok=True)
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(PROFILE_DIR, exist_ok=True)

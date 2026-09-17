@@ -6,11 +6,14 @@ resource "kubernetes_namespace" "falco" {
 }
 
 resource "helm_release" "falco" {
-  name       = "falco"
-  repository = "https://falcosecurity.github.io/charts"
-  chart      = "falco"
-  namespace  = kubernetes_namespace.falco.metadata[0].name
+  name            = "falco"
+  repository      = "https://falcosecurity.github.io/charts"
+  chart           = "falco"
+  namespace       = kubernetes_namespace.falco.metadata[0].name
+  timeout         = 600
+  cleanup_on_fail = true
 
+  # Règles custom : terraform/falco_rules.local.yaml (fichier réellement déployé).
   values = [
     yamlencode({
       customRules = {
@@ -19,6 +22,7 @@ resource "helm_release" "falco" {
     })
   ]
 
+  # eBPF moderne : pas besoin de compiler un module kernel (plus simple en lab Kind).
   set {
     name  = "driver.kind"
     value = "modern_ebpf"
@@ -29,13 +33,9 @@ resource "helm_release" "falco" {
     value = "true"
   }
 
+  # Pas d'UI Falcosidekick (évite Redis + un service de plus). Le webhook suffit.
   set {
     name  = "falcosidekick.webui.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "falcosidekick.webui.redis.persistence.enabled"
     value = "false"
   }
 
@@ -46,7 +46,7 @@ resource "helm_release" "falco" {
 
   set {
     name  = "falcosidekick.config.webhook.address"
-    value = "http://172.17.0.1:5002/events"
+    value = "http://${var.collector_host}:${var.collector_webhook_port}/events"
   }
 
   depends_on = [helm_release.cilium]

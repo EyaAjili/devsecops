@@ -1,8 +1,9 @@
 provider "kind" {}
 
 resource "kind_cluster" "devsecops_lab" {
-  name           = "devsecops-lab"
-  wait_for_ready = true
+  name            = "devsecops-lab"
+  wait_for_ready  = true
+  kubeconfig_path = "${path.module}/devsecops-lab-config"
 
   kind_config {
     kind        = "Cluster"

@@ -14,20 +14,44 @@ from core.features import (
     has_suspicious_keyword,
     has_suspicious_extension,
     command_duration_features,
+    count_events_5min,
 )
 from core.iocs_loader import SENSITIVE_PATHS, NETWORK_VERBS
 from core.time_features import temporal_features, to_lab_local, parse_duration_ms
 
 ANOMALY_RULES = {
     "Unexpected process spawned in application container",
+    "Unexpected process spawned",
     "Read sensitive file untrusted",
     "Sensitive file access outside shadow",
     "Sensitive environment variable credential access",
     "Unexpected package manager execution",
-    "Drop and execute new binary in container",
     "Suspicious outbound connection",
     "Unexpected inbound connection on non-standard port",
+    "Terminal shell in container",
+    "Run shell untrusted",
 }
+
+# Bruit Kubernetes / hôte : ne pas les apprendre comme « attaque ».
+NOISE_RULES = {
+    "Drop and execute new binary in container",
+    "Directory traversal monitored file read",
+    "Contact K8S API Server From Container",
+    "Baseline normal activity demo-app",
+}
+
+
+def label_is_anomaly(row):
+    rule = str(row.get("rule", ""))
+    cmd = str(row.get("command", ""))
+    if rule in NOISE_RULES:
+        return 0
+    if rule == "Suspicious outbound connection":
+        domain = target_domain(cmd)
+        return 1 if domain in ("external_malicious", "external_unknown") else 0
+    if rule in ANOMALY_RULES:
+        return 1
+    return 0
 
 
 class GlobalModel:
@@ -65,8 +89,9 @@ class GlobalModel:
         df["is_long_runtime"] = (df["command_duration_ms"] >= 3000).astype(int)
 
         df["file"] = df["file"].fillna("").astype(str)
-        df["is_sensitive_file"] = df["file"].apply(
-            lambda f: int(any(s in f for s in SENSITIVE_PATHS))
+        df["is_sensitive_file"] = df.apply(
+            lambda r: int(any(s in f"{r.get('file', '')} {r.get('command', '')}" for s in SENSITIVE_PATHS)),
+            axis=1,
         )
         df["proc_name"] = df["proc_name"].fillna("").astype(str) if "proc_name" in df.columns else ""
         df["parent_process"] = df["parent_process"].fillna("").astype(str) if "parent_process" in df.columns else ""
@@ -92,11 +117,11 @@ class GlobalModel:
                 counts.append(int(((times >= window_start) & (times <= t)).sum()))
             df.loc[group.index, "event_count_5min"] = counts
 
-        df["is_anomaly"] = df["rule"].isin(ANOMALY_RULES).astype(int)
+        df["is_anomaly"] = df.apply(label_is_anomaly, axis=1).astype(int)
         return df
 
     def encode(self, df):
-        for col in ["event_scope", "command_verb", "target_domain"]:
+        for col in ["event_scope", "command_verb"]:
             if col in df.columns:
                 le = LabelEncoder()
                 df[col + "_enc"] = le.fit_transform(df[col].fillna("unknown").astype(str))
@@ -125,8 +150,9 @@ class GlobalModel:
         print("\nDistribution training :")
         print(pd.Series(y_train).value_counts().rename(index={0: "Normal", 1: "Anomalie"}))
 
+        # Arbre volontairement peu profond : évite un ROC-AUC « parfait » qui recopie Falco.
         self.model = RandomForestClassifier(
-            n_estimators=50, max_depth=5, min_samples_split=20, min_samples_leaf=10,
+            n_estimators=80, max_depth=4, min_samples_split=25, min_samples_leaf=12,
             class_weight="balanced", random_state=42, n_jobs=-1,
         )
         self.model.fit(X_train, y_train)
@@ -164,11 +190,10 @@ class GlobalModel:
                 self.feature_cols = pickle.load(f)
         else:
             self.feature_cols = [
-                "hour_of_day", "day_of_week", "is_weekend", "command_length",
-                "command_arg_count", "has_pipe", "has_redirect", "has_dollar_subshell",
-                "is_sensitive_file", "is_shell_spawned", "has_indirection",
-                "event_count_5min", "command_verb_enc", "target_domain_enc",
-            ]
+    "hour_of_day", "day_of_week", "is_weekend", "command_length",
+    "command_arg_count", "is_shell_spawned", "has_indirection",
+    "event_count_5min", "command_verb_enc",
+]
         return self
 
     def predict(self, event_dict, history_df=None):
@@ -176,18 +201,10 @@ class GlobalModel:
             self.load()
 
         tf = temporal_features(event_dict.get("timestamp"))
-        ts = tf["timestamp_local"]
         cmd = str(event_dict.get("command", ""))
         dur = command_duration_features(event_dict)
 
-        event_count_5min = 1
-        if history_df is not None and pd.notna(ts):
-            pod = event_dict.get("pod")
-            pod_history = history_df[history_df["pod"] == pod].copy()
-            if len(pod_history) > 0:
-                pod_history["timestamp_dt"] = pod_history["timestamp"].apply(to_lab_local)
-                window_start = ts - pd.Timedelta(minutes=5)
-                event_count_5min = max(1, int(((pod_history["timestamp_dt"] >= window_start) & (pod_history["timestamp_dt"] <= ts)).sum()))
+        event_count_5min = count_events_5min(event_dict, history_df)
 
         proc_name = str(event_dict.get("proc_name", ""))
         parent_process = str(event_dict.get("parent_process", ""))
@@ -204,7 +221,7 @@ class GlobalModel:
             "has_dollar_subshell": 1 if "$(" in cmd else 0,
             "has_suspicious_keyword": has_suspicious_keyword(cmd),
             "has_suspicious_extension": has_suspicious_extension(cmd),
-            "is_sensitive_file": 1 if any(s in file_value for s in SENSITIVE_PATHS) else 0,
+            "is_sensitive_file": 1 if any(s in f"{file_value} {cmd}" for s in SENSITIVE_PATHS) else 0,
             "is_shell_spawned": 1 if proc_name in ["sh", "bash", "zsh"] or parent_process in ["runc", "sh", "bash"] else 0,
             "has_indirection": 1 if proc_name == "sh" and verb in (list(NETWORK_VERBS) + ["cat", "ls"]) else 0,
             "event_count_5min": event_count_5min,
