@@ -3,6 +3,9 @@
 # à Falcosidekick de remplir output_fields pour le collector.
 #
 # Syntaxe Falco : condition = macros/champs kernel ; output = texte d'alerte.
+#
+# IMPORTANT : les output utilisent une seule ligne (pas de >) pour éviter
+# l'erreur LOAD_ERR_COMPILE_OUTPUT avec les versions récentes de Falco.
 
 # ------------------------------------------------------------
 # RÉSEAU
@@ -15,12 +18,7 @@
     fd.rport != 80 and
     fd.rport != 443 and
     fd.rport != 53
-  output: >
-    Suspicious outbound connection
-    (user=%user.name command=%proc.cmdline
-    connection=%fd.name container=%container.name
-    image=%container.image.repository
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Suspicious outbound connection (user=%user.name uid=%user.uid command=%proc.cmdline connection=%fd.name container=%container.name image=%container.image.repository container_id=%container.id container_image_repository=%container.image.repository container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: WARNING
   tags: [network, custom]
 
@@ -33,12 +31,7 @@
     fd.lport != 80 and
     fd.lport != 443 and
     fd.lport != 53
-  output: >
-    Unexpected inbound connection on non-standard port
-    (connection=%fd.name local_port=%fd.lport
-    process=%proc.name container=%container.name
-    image=%container.image.repository
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Unexpected inbound connection on non-standard port (connection=%fd.name local_port=%fd.lport process=%proc.name container=%container.name image=%container.image.repository container_id=%container.id container_image_repository=%container.image.repository container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: WARNING
   tags: [network, custom]
 
@@ -53,12 +46,7 @@
     (fd.name startswith /etc/ssh or
      fd.name startswith /root/.ssh or
      fd.name endswith .pem)
-  output: >
-    Sensitive credential file accessed
-    (user=%user.name file=%fd.name
-    process=%proc.name container=%container.name
-    image=%container.image.repository
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Sensitive credential file accessed (user=%user.name uid=%user.uid file=%fd.name process=%proc.name container=%container.name image=%container.image.repository container_id=%container.id container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: CRITICAL
   tags: [filesystem, credentials, custom]
 
@@ -68,12 +56,7 @@
     open_read and container and
     (fd.name=/proc/self/environ or
      fd.name glob /proc/*/environ)
-  output: >
-    Possible credential access through process environment
-    (user=%user.name file=%fd.name
-    process=%proc.name container=%container.name
-    image=%container.image.repository
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Possible credential access through process environment (user=%user.name uid=%user.uid file=%fd.name process=%proc.name container=%container.name image=%container.image.repository container_id=%container.id container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: WARNING
   tags: [credentials, process, custom]
 
@@ -86,11 +69,7 @@
   condition: >
     spawned_process and container and
     proc.name in (apt, apt-get, yum, dnf, apk, pip, pip3)
-  output: >
-    Package manager executed in container
-    (user=%user.name command=%proc.cmdline
-    container=%container.name image=%container.image.repository
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Package manager executed in container (user=%user.name uid=%user.uid command=%proc.cmdline container=%container.name image=%container.image.repository container_id=%container.id container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: WARNING
   tags: [process, custom]
 
@@ -99,12 +78,7 @@
   condition: >
     spawned_process and container and
     proc.name in (bash, sh, zsh, nc, ncat, curl, wget)
-  output: >
-    Unexpected process spawned in application container
-    (user=%user.name process=%proc.name
-    command=%proc.cmdline parent=%proc.pname
-    container=%container.name image=%container.image.repository
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Unexpected process spawned in application container (user=%user.name uid=%user.uid process=%proc.name command=%proc.cmdline parent=%proc.pname container=%container.name image=%container.image.repository container_id=%container.id container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: WARNING
   tags: [process, execution, custom]
 
@@ -117,12 +91,6 @@
   condition: >
     spawned_process and container and
     k8s.ns.name = "demo-app"
-  output: >
-    Baseline activity
-    (user=%user.name process=%proc.name
-    command=%proc.cmdline parent=%proc.pname
-    container=%container.name image=%container.image.repository
-    pod=%k8s.pod.name
-    duration_evt=%evt.duration duration_proc=%proc.duration)
+  output: "Baseline activity (user=%user.name uid=%user.uid process=%proc.name command=%proc.cmdline parent=%proc.pname container=%container.name image=%container.image.repository pod=%k8s.pod.name container_id=%container.id container_image_tag=%container.image.tag k8s_pod_name=%k8s.pod.name k8s_ns_name=%k8s.ns.name)"
   priority: INFORMATIONAL
   tags: [baseline, custom]

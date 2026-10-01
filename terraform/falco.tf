@@ -44,9 +44,24 @@ resource "helm_release" "falco" {
     value = "true"
   }
 
+  # Active le k8s-metacollector pour enrichir les events avec les métadonnées
+  # Kubernetes (k8s.pod.name, k8s.ns.name, container.name, etc.)
+  set {
+    name  = "collectors.kubernetes.enabled"
+    value = "true"
+  }
+
   set {
     name  = "falcosidekick.config.webhook.address"
     value = "http://${var.collector_host}:${var.collector_webhook_port}/events"
+  }
+
+  dynamic "set" {
+    for_each = var.falco_webhook_token == "" ? [] : [1]
+    content {
+      name  = "falcosidekick.config.webhook.customHeaders"
+      value = "Authorization: Bearer ${var.falco_webhook_token}"
+    }
   }
 
   depends_on = [helm_release.cilium]

@@ -16,7 +16,12 @@ PYTHON_CMDS = [
     ("python -c import time; time.sleep(1)", "python", "containerd-shim", "python", "472"),
 ]
 
-
+INIT_VERBS = [
+    "docker-entrypoint.sh", "10-listen-on-ipv6-by-default.sh",
+    "20-envsubst-on-templates.sh", "30-tune-worker-processes.sh",
+    "mount-product-files.sh", "nginx", "jq", "cp", "find", "sort",
+    "touch", "grep", "dpkg-query", "cut", "md5sum", "sed", "awk",
+]
 def _utc_stamp(hour_utc, minute=None):
     day = random.randint(14, 20)
     m = minute if minute is not None else random.randint(0, 59)

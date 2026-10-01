@@ -4,7 +4,7 @@ output "kubeconfig_path" {
 }
 
 output "grafana_nodeport" {
-  description = "Grafana (utilisateur admin / mot de passe admin)"
+  description = "Grafana NodePort (utilisateur admin ; mot de passe = var.grafana_admin_password)"
   value       = "http://localhost:30030 (NodePort) ou kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80"
 }
 

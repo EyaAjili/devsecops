@@ -15,7 +15,7 @@ resource "helm_release" "kube_prometheus_stack" {
         adminPassword = "admin"
 
         service = {
-          type = "NodePort"
+          type     = "NodePort"
           nodePort = 30030
         }
       }
@@ -24,12 +24,12 @@ resource "helm_release" "kube_prometheus_stack" {
         enabled = true
 
         service = {
-          type = "NodePort"
+          type     = "NodePort"
           nodePort = 30090
         }
 
         prometheusSpec = {
-          scrapeInterval = "5s"
+          scrapeInterval     = "5s"
           evaluationInterval = "5s"
           additionalScrapeConfigs = [
             {

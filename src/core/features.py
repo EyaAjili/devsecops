@@ -1,8 +1,12 @@
 import re
 import pandas as pd
 from core.iocs_loader import (
-    INTERNAL_INDICATORS, MALICIOUS_DOMAINS, NETWORK_VERBS,
-    SUSPICIOUS_KEYWORDS, SUSPICIOUS_EXTS
+    INTERNAL_INDICATORS,
+    MALICIOUS_DOMAINS,
+    NETWORK_VERBS,
+    SUSPICIOUS_KEYWORDS,
+    SUSPICIOUS_EXTS,
+    SENSITIVE_PATHS,
 )
 from core.time_features import parse_duration_ms, to_lab_local, temporal_features
 
@@ -60,6 +64,46 @@ def has_suspicious_keyword(cmd):
 def has_suspicious_extension(cmd):
     return int(any(ext in str(cmd) for ext in SUSPICIOUS_EXTS))
 
+def is_sensitive_target(event_or_row):
+    """
+    Detect whether an event targets a sensitive file/path.
+
+    The function accepts either:
+      - a dict-like event
+      - a pandas Series
+
+    It checks both the extracted file descriptor and
+    the command line because sensitive targets may appear
+    in either field.
+    """
+
+    if event_or_row is None:
+        return False
+
+    if hasattr(event_or_row, "get"):
+        file_name = event_or_row.get("file", "")
+        command = event_or_row.get("command", "")
+        fd_name = event_or_row.get("fd.name", "")
+    else:
+        file_name = ""
+        command = str(event_or_row)
+        fd_name = ""
+
+    text = " ".join(
+        str(value or "")
+        for value in (
+            file_name,
+            fd_name,
+            command,
+        )
+    ).lower()
+
+    return any(
+        str(path).lower() in text
+        for path in SENSITIVE_PATHS
+    )
+
+
 
 def domain_to_score(domain):
     return {"none": 0, "internal": 1, "external_unknown": 3, "external_malicious": 4}.get(domain, 2)
@@ -78,8 +122,14 @@ def command_duration_features(event_or_row):
     }
 
 
-def count_events_5min(event_dict, history_df):
-    """Nombre d'événements du même pod dans les 5 minutes (fuseau lab)."""
+def count_events_5min(event_dict, history_df, min_span_seconds=10):
+    """
+    Nombre d'événements du même pod dans les 5 minutes (fuseau lab).
+    Si tous ces événements tiennent dans une fenêtre plus courte que
+    min_span_seconds, ce n'est pas une rafale suspecte : c'est probablement
+    un script de démarrage légitime (ex. docker-entrypoint.d) qui exécute
+    beaucoup de commandes en une fraction de seconde.
+    """
     ts = temporal_features(event_dict.get("timestamp"))["timestamp_local"]
     if history_df is None or getattr(history_df, "empty", True) or pd.isna(ts):
         return 1
@@ -91,13 +141,14 @@ def count_events_5min(event_dict, history_df):
         return 1
     times = subset["timestamp"].apply(to_lab_local)
     window_start = ts - pd.Timedelta(minutes=5)
-    return max(1, int(((times >= window_start) & (times <= ts)).sum()))
-
-
-def is_sensitive_target(event_dict):
-    from core.iocs_loader import SENSITIVE_PATHS
-    blob = f"{event_dict.get('file', '')} {event_dict.get('command', '')}"
-    return any(s in str(blob) for s in SENSITIVE_PATHS)
+    in_window = times[(times >= window_start) & (times <= ts)]
+    count = max(1, int(len(in_window)))
+    if count <= 1:
+        return count
+    span = (in_window.max() - in_window.min()).total_seconds()
+    if span < min_span_seconds:
+        return 1
+    return count
 
 
 def extract_file_and_connection(output_fields, rule):

@@ -120,12 +120,24 @@ class GlobalModel:
         df["is_anomaly"] = df.apply(label_is_anomaly, axis=1).astype(int)
         return df
 
-    def encode(self, df):
+    def _apply_label_encoder(self, series, col, fit):
+        series = series.fillna("unknown").astype(str)
+        if fit:
+            le = LabelEncoder()
+            encoded = le.fit_transform(series)
+            self.le_dict[col] = le
+            return encoded
+        le = self.le_dict.get(col)
+        if le is None:
+            return np.zeros(len(series), dtype=int)
+        class_to_idx = {name: idx for idx, name in enumerate(le.classes_)}
+        return np.array([class_to_idx.get(v, 0) for v in series], dtype=int)
+
+    def encode(self, df, fit=True):
+        df = df.copy()
         for col in ["event_scope", "command_verb"]:
             if col in df.columns:
-                le = LabelEncoder()
-                df[col + "_enc"] = le.fit_transform(df[col].fillna("unknown").astype(str))
-                self.le_dict[col] = le
+                df[col + "_enc"] = self._apply_label_encoder(df[col], col, fit)
 
         self.feature_cols = [c for c in FEATURE_COLS if c in df.columns]
         X = df[self.feature_cols].fillna(0)
@@ -135,16 +147,17 @@ class GlobalModel:
     def train(self, df):
         print("\n[COUCHE 1] Entraînement du modèle GLOBAL...")
         df = self.extract_features(df)
-        X, y = self.encode(df)
-        if len(X) < 10:
+        if len(df) < 10:
             raise ValueError("Dataset trop petit pour entraîner le modèle.")
-        if len(np.unique(y)) < 2:
-            raise ValueError("Le dataset doit contenir au moins une classe normale et une anomalie.")
 
-        split_idx = int(len(X) * 0.75)
-        X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-        y_train, y_test = y[:split_idx], y[split_idx:]
-        print(f"\nDataset total : {len(X)}")
+        # Encoder fit UNIQUEMENT sur le train (évite la fuite des verbes du test).
+        split_idx = int(len(df) * 0.75)
+        train_df, test_df = df.iloc[:split_idx].copy(), df.iloc[split_idx:].copy()
+        X_train, y_train = self.encode(train_df, fit=True)
+        X_test, y_test = self.encode(test_df, fit=False)
+        if y_train is None or len(np.unique(y_train)) < 2:
+            raise ValueError("Le dataset doit contenir au moins une classe normale et une anomalie.")
+        print(f"\nDataset total : {len(df)}")
         print(f"Training      : {len(X_train)}")
         print(f"Testing       : {len(X_test)}")
         print("\nDistribution training :")
@@ -245,5 +258,5 @@ class GlobalModel:
             else:
                 row[enc_col] = 0
 
-        X = np.array([[row.get(f, 0) for f in self.feature_cols]])
+        X = pd.DataFrame([[row.get(f, 0) for f in self.feature_cols]], columns=self.feature_cols)
         return float(self.model.predict_proba(X)[0][1])

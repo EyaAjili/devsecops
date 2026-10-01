@@ -51,7 +51,7 @@ class UBAModel:
             "user_name": str(user_df["user"].iloc[0]),
             "total_events": len(user_df),
             "hourly_histogram": build_hourly_histogram(normal_df if len(normal_df) > 0 else user_df),
-            "verbs": [v for v, _ in Counter(user_df["command_verb"]).most_common(10)],
+            "verbs": sorted(set(user_df["command_verb"])),
             "domains": [d for d, _ in Counter(user_df["target_domain"]).most_common()],
             "sensitive_rate": float(user_df["is_sensitive_file"].mean()),
             "pipe_rate": float(user_df["has_pipe"].mean()),

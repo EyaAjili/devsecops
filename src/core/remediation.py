@@ -17,8 +17,11 @@ def execute_kubectl(args):
             stderr=subprocess.PIPE,
             text=True,
             env=env,
+            timeout=20,
         )
         return True, result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        return False, "kubectl timeout (20s)"
     except subprocess.CalledProcessError as e:
         err = (e.stderr or e.stdout or str(e)).strip()
         return False, err

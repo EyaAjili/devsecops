@@ -1,0 +1,9 @@
+controller:
+  installPlugins:            # overrides the defaults, so list the essentials too
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - credentials-binding
+    - pipeline-utility-steps
+    - email-ext

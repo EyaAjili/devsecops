@@ -1,17 +1,41 @@
 # Terraform
-*.tfstate
-*.tfstate.*
 .terraform/
 .terraform.lock.hcl
-devsecops-lab-config
+*.tfstate
+*.tfstate.*
+*devsecops-lab-config*
+*kubeconfig*
 
 # Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+env/
 
-# Secrets
+# Secrets & Credentials
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+
+# IDEs & Tools
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Temporary & Backup files
+*.backup.*
+*.tmp
+
+# Generated Reports & Scratch
+evidence/
+train_report.txt
+
+src/data/incidents/
+src/etcd-backup-*/
