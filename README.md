@@ -440,3 +440,4 @@ Pour approfondir le projet et préparer votre soutenance :
 - **[`SCENARIOS_TESTS.md`](file:///home/eya/devsecops-ai-prototype/SCENARIOS_TESTS.md)** : Guide complet des commandes à exécuter une par une pour chaque cas d'usage.
 - **[`RAPPORT_TECHNIQUE_DETAILS.md`](file:///home/eya/devsecops-ai-prototype/RAPPORT_TECHNIQUE_DETAILS.md)** : Rapport technique exhaustif analysant la vision globale, le calcul mathématique du score IA, la signification des pipelines Jenkins et chaque paramètre de configuration fichier par fichier.
 - **[`GUIDE_SOUTENANCE_ET_ENV.md`](file:///home/eya/devsecops-ai-prototype/GUIDE_SOUTENANCE_ET_ENV.md)** : Discours de soutenance officiel (~10-12 min), exports complets des variables d'environnement (Gmail, Jira, Jenkins) et guide de push GitHub.
+# ci test
